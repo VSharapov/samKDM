@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <link rel="icon" href="">
+    <style type="text/css">
+      code, pre, xmp {
+        background-color: #6666;
+        padding: 2px;
+        display: inline-block;
+      }
+      pre code {
+        background-color: #0000;
+        padding: 0px;
+      }
+    </style>
+    <style type="text/css" media="(prefers-color-scheme: light)">
+    </style>
+    <style type="text/css" media="(prefers-color-scheme: dark)">
+      body {background-color: black; color: white;}
+      a:link    {color: #06f;}
+      a:visited {color: #61c;}
+      a:hover   {color: #a8c;}
+      select, button, input {filter: invert(1);}
+    </style>
+    <style type="text/css" media="(prefers-color-scheme: never)">
+      body {background-color: red;}
+    </style>
+    <script src="https://cdn.rawgit.com/showdownjs/showdown/1.9.1/dist/showdown.min.js"></script>
+    <script>
+var fileToRender = 'README.md';
+var defaultFile  = fileToRender;
+var getParams    = {};
+const converter  = new showdown.Converter();
+var textToParse  = '';
+var html         = '';
+var oreq;
+
+const cssAlwaysMedia = document.styleSheets[0].media.mediaText;
+const cssLightMedia  = document.styleSheets[1].media.mediaText;
+const cssDarkMedia   = document.styleSheets[2].media.mediaText;
+const cssNeverMedia  = document.styleSheets[3].media.mediaText;
+var cssLight         = document.styleSheets[1];
+var cssDark          = document.styleSheets[2];
+
+const menuOptions = {
+  'theme': {
+    'auto': true,
+    'dark': false,
+    'light': false
+  }, 'text-width': {
+    'full-width': true,
+    'readable': false
+  }, 'font-family': {
+    'serif': false,
+    'sans-serif': true,
+    'monospace': false
+  }, 'parse': {
+    'markdown': true,
+    'raw': false
+  }
+};
+var selectedOptions = {};
+
+function init () {
+  // GET parameters
+  var getPairs = location.search.substr(1).split('&');
+  for (var i in getPairs) {
+    getParams[getPairs[i].split('=')[0]] = getPairs[i].split('=')[1];
+  }
+
+  // Options
+  for (var i in menuOptions) {
+    for (var j in menuOptions[i]) {
+      if (menuOptions[i][j]) {
+        // Default...
+        selectedOptions[i] = j;
+      }
+    }
+  }
+  for (var i in menuOptions) {
+    if (localStorage.getItem(i) in menuOptions[i]) {
+      // ...overridden by localStorage...
+      selectedOptions[i] = localStorage.getItem(i);
+    }
+  }
+  for (var i in menuOptions) {
+    if (getParams[i] in menuOptions[i]) {
+      // ...overriden by GET parameters
+      selectedOptions[i] = getParams[i];
+    }
+  }
+
+  if ('fileToRender' in getParams){
+    fileToRender = getParams.fileToRender;
+  }
+
+  // Loading...
+  html = converter.makeHtml('loading ``' + fileToRender + '`` ...');
+  makeFaviconText('⏳');
+}
+init();
+
+function makeFaviconText (textIn) {
+  var svg = 'data:image/svg+xml,' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+    '<text paint-order="stroke" stroke="white" stroke-width="16" ' +
+    'fill="black" font-stretch="ultra-condensed" font-family="mono" ' +
+    'y=".9em" font-size="90">' + textIn + '</text></svg>';
+  document.querySelector('link[rel~="icon"]').href = svg;
+}
+
+function updateContent () {
+  var parsed = document.getElementById('parsed');
+  var rawContent = '<xmp>' + textToParse + '</xmp>';
+  var mdContent = converter.makeHtml(textToParse);
+  parsed.innerHTML = mdContent;
+  document.title = parsed.children[0].innerText;
+  if (selectedOptions['parse'] == 'raw') {
+    parsed.innerHTML = rawContent;
+  }
+  makeFaviconText(document.title);
+  makeFaviconText('🏮');
+  // Scroll to #frament - remember, the content wasn't there onload
+  if (location.href.split('#').length > 1) {location.href = location.href;}
+}
+
+function reqListener () {
+  var parsed = document.getElementById('parsed');
+  textToParse = this.responseText;
+  updateContent();
+  if ((this.status < 200 || this.status > 300) && this.status != 304) {
+    parsed.innerHTML = converter.makeHtml('Status ' + this.status);
+    document.title = this.status;
+    makeFaviconText('❌');
+    console.log(this);
+  }
+}
+
+function toggleMenu () {
+  var miniMenu = '<button style="float:right;" onclick="toggleMenu()">' + '☰' +
+    '</button>';
+  var bigMenu = miniMenu;
+  var mDiv = document.getElementById('indexmdmenu');
+  if (mDiv.innerHTML == miniMenu) {
+    for (var i in menuOptions){
+      bigMenu += '<select id="' + i + '"' +
+        (i == Object.keys(menuOptions)[0] ? '' : ' style="width:100%;"') + '>';
+      for (var j in menuOptions[i]) {
+        bigMenu += '<option value="' + j + '"' +
+          (selectedOptions[i] == [j] ? ' selected' : '') +
+          '>' + j + '</option>';
+      }
+      bigMenu += '</select><br />';
+    }
+    bigMenu += '<input type="text" size=8 id="fileToRender" ' +
+      'style="box-sizing:border-box; width:100%;" value="' +
+      fileToRender + '"><br />';
+    mDiv.innerHTML = bigMenu;
+  } else {
+    mDiv.innerHTML = miniMenu;
+  }
+}
+
+function menuEffect () {
+  for (var i in menuOptions){
+    var selectElement = document.getElementById(i);
+    selectedOptions[i] = selectElement.selectedOptions[0].innerText;
+    if (menuOptions[i][selectedOptions[i]]) { // Unset if default
+      localStorage.removeItem(i);
+    } else { // Set if not default
+      localStorage.setItem(i, selectedOptions[i]);
+    }
+  }
+  settingsApply();
+}
+
+function settingsApply () {
+  switch (selectedOptions['theme']) {
+    case 'dark':
+      cssDark.media.mediaText  = cssAlwaysMedia;
+      cssLight.media.mediaText = cssNeverMedia;
+      break;
+    case 'light':
+      cssDark.media.mediaText  = cssNeverMedia;
+      cssLight.media.mediaText = cssAlwaysMedia;
+      break;
+    default:
+      cssDark.media.mediaText  = cssDarkMedia;
+      cssLight.media.mediaText = cssLightMedia;
+  }
+  switch (selectedOptions['text-width']) {
+    case 'readable':
+      document.body.style.maxWidth   = '70ch';
+      document.body.style.margin     = 'auto';
+      document.body.style.fontSize   = '131.25%';
+      break;
+    default:
+      document.body.style.maxWidth   = '';
+      document.body.style.margin     = '';
+      document.body.style.fontSize   = '';
+  }
+  document.body.style.fontFamily = selectedOptions['font-family'];
+  if (textToParse != '') {updateContent();}
+  var newTarget = document.getElementById('fileToRender');
+  if (newTarget && newTarget.value != fileToRender){
+    fileToRender = newTarget.value;
+    oReq.open('GET', fileToRender);
+    oReq.send();
+  }
+  // Make address bar reflect non-default settings
+  var newGetParameters = '';
+  for (var k in selectedOptions) {
+    if (!menuOptions[k][selectedOptions[k]]) {
+      newGetParameters += '&' + k + '=' + selectedOptions[k];
+    }
+  }
+  if (fileToRender != defaultFile) {
+    newGetParameters += '&fileToRender=' + fileToRender;
+  }
+  if (newGetParameters != '') {
+    newGetParameters = '?' + newGetParameters.substr(1);
+  }
+  window.history.replaceState({}, '', location.pathname + newGetParameters + location.hash);
+}
+
+function main () {
+  toggleMenu();
+  settingsApply();
+  oReq = new XMLHttpRequest();
+  oReq.addEventListener('load', reqListener);
+  oReq.open('GET', fileToRender);
+  oReq.send();
+}
+    </script>
+    <!-- Load d3.js -->
+<script src="https://d3js.org/d3.v6.js"></script>
+	</head>
+  <body onload="main()">
+    <div id="indexmdmenu" style="float:right; max-width:30vw; border:dotted" onchange="menuEffect()"></div>
+    <div id="kdmCalculon">
+      <h5><a href="https://kingdomdeath.fandom.com/wiki/Speed">Speed</a>:</h5>
+      How many attack rolls: <input id="spd" type="number" value="2" min="1" style="width: 3em;" /><br />
+      <h5><a href="https://kingdomdeath.fandom.com/wiki/Attack_Roll">To hit</a>:</h5>
+      Die roll needed to hit: <input id="acc" type="number" value="7" min="1" max="10" style="width: 3em;" /><br />
+      <h5><a href="https://kingdomdeath.fandom.com/wiki/Wound_Attempt">To wound</a>:</h5>
+      Die roll needed to wound: <input id="str" type="number" value="7" min="1" max="10" style="width: 3em;" /><br />
+      <button id="calculate-btn">Calculate</button>
+      <h5>Results:</h5>
+      <div id="allResults">
+	<script>
+function kdmCalculonParemeterize() {
+	const kdmCalculonDiv = document.getElementById("kdmCalculon");
+	const inputElements = kdmCalculonDiv.getElementsByTagName("input");
+	const result = {};
+
+	for (let i = 0; i < inputElements.length; i++) {
+		const input = inputElements[i];
+		result[input.id] = input.value;
+	}
+
+	return result;
+}
+
+function mansplain(lineOfText) {
+  results = document.getElementById('results');
+  results.innerHTML += lineOfText + '<br />'
+}
+
+function createProbabilityDistribution(probability, attempts) {
+  // bad job ChatGPT...
+  //const results = {};
+
+  //for (let i = 0; i <= attempts; i++) {
+  //  const probabilityOfSuccess = Math.pow(probability, i) * Math.pow(1 - probability, attempts - i);
+  //  const numberOfSuccesses = i;
+
+  //  if (results[numberOfSuccesses]) {
+  //    results[numberOfSuccesses] += probabilityOfSuccess;
+  //  } else {
+  //    results[numberOfSuccesses] = probabilityOfSuccess;
+  //  }
+  //}
+
+  //return results;
+  // ...bad job, using this instead: https://github.com/thisancog/statistics.js/blob/639967969342cc0bd1fadc3f1221b8caff9c4518/statistics.js#L2009
+  return binom(attempts, probability);
+}
+
+function binom(spd, probSucc) {
+	spd = Number(spd)
+	probSucc = Number(probSucc)
+
+	let y = 0,
+		p = 0,
+		probSum = 0,
+		distribution = {},
+		binomialCoefficient = 1;
+
+	while (y <= spd) {
+		p = binomialCoefficient * Math.pow(probSucc, y) * Math.pow(1 - probSucc, spd - y);
+		distribution[y] = p;
+		probSum += p;
+		y++;
+		binomialCoefficient = binomialCoefficient * (spd + 1 - y) / y;
+	}
+	
+	return distribution;
+}
+
+function flatten(someDistribution){
+	res = 0;
+	for (let k in someDistribution){
+		res += someDistribution[k] * Number(k)
+	}
+	return res;
+}
+
+function calculate() {
+  results = document.getElementById('results');
+  results.innerHTML = "";
+  kdmCalculonParams = kdmCalculonParemeterize()
+  attackSuccessChance = 100;
+  mansplain('Your chance of initiating an attack is ' + attackSuccessChance + '/100')
+  x = kdmCalculonParams['acc'];
+  attackSuccessChance *= 10-x+1;
+  attackSuccessChance /= 10;
+  mansplain('You only hit on a ' + x + '+ so there is a ' + (x-1) + ' in 10 chance you will miss, reducing your chances of success to ' + attackSuccessChance + '/100')
+  x = kdmCalculonParams['str'];
+  attackSuccessChance *= 10-x+1;
+  attackSuccessChance /= 10;
+  mansplain('You only wound on a ' + x + '+ so there is a ' + (x-1) + ' in 10 chance you will miss, reducing your chances of success to ' + attackSuccessChance + '/100')
+  dist = createProbabilityDistribution(attackSuccessChance/100.0, kdmCalculonParams['spd']);
+  mansplain('For ' + kdmCalculonParams['spd'] + ' attempts your wound distribution is: <textarea rows="' + (Number(kdmCalculonParams['spd'])+3) + '" cols="33">' + JSON.stringify(dist, undefined, 2) + '</textarea>');
+  mansplain('...with an average outcome of ' + flatten(dist) + ' wounds.')
+  results.innerHTML += '<div id="my_dataviz"></div>';
+
+
+// set the dimensions and margins of the graph
+var margin = {top: 30, right: 30, bottom: 70, left: 60},
+    width = 460 - margin.left - margin.right,
+    height = 400 - margin.top - margin.bottom;
+
+document.getElementById('my_dataviz').innerHTML="";
+// append the svg object to the body of the page
+var svg = d3.select("#my_dataviz")
+  .append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+
+// Parse the Data
+function makeBarGraph(data) {
+
+// X axis
+var x = d3.scaleBand()
+  .range([ 0, width ])
+  .domain(Object.keys(data))
+  .padding(0.2);
+svg.append("g")
+  .attr("transform", "translate(0," + height + ")")
+  .call(d3.axisBottom(x))
+  .selectAll("text")
+    .attr("transform", "translate(-10,0)rotate(-45)")
+    .style("text-anchor", "end");
+
+// Add Y axis
+var y = d3.scaleLinear()
+  .domain([0, Math.max(...data.map(obj => obj.probability))])
+  .range([ height, 0]);
+svg.append("g")
+  .call(d3.axisLeft(y));
+
+// Bars
+svg.selectAll("mybar")
+  .data(data)
+  .enter()
+  .append("rect")
+    .attr("x", function(d) { return x(d.wounds); })
+    .attr("y", function(d) { return y(d.probability); })
+    .attr("width", x.bandwidth())
+    .attr("height", function(d) { return height - y(d.probability); })
+    .attr("fill", "#69b3a2")
+
+}
+
+barGraphDist = Object.entries(dist).map(([wounds, probability]) => ({
+    wounds: wounds,
+    probability: probability
+  }));
+
+makeBarGraph(barGraphDist);
+document.getElementById('my_dataviz').id = 'oldviz';
+document.getElementById('results').id = 'oldres';
+oldres = document.getElementById('oldres');
+newDiv = document.createElement('div');
+document.getElementById('allResults').insertBefore(newDiv, oldres);
+newDiv.id = 'results';
+
+
+  //probs = createProbabilityDistribution(kdmCalculonParams)
+  //console.log(probs)
+}
+
+document.getElementById("calculate-btn").addEventListener("click", calculate);
+	</script>
+      <div id="results"></div>
+    </div>
+    </div>
+<!-- Create a div where the graph will take place -->
+    <div id="parsed"></div>
+    <div>
+    <img src = "sam.svg" />
+	</body>
+</html>
